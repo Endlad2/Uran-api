@@ -14,9 +14,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create settings.ini from secrets
+      - name: Create settings.inf from secrets
         run: |
-          cat > settings.ini << EOF
+          cat > settings.inf << EOF
           [Telegram]
           api_id = ${{ secrets.TELEGRAM_API_ID }}
           api_hash = ${{ secrets.TELEGRAM_API_HASH }}
@@ -28,14 +28,13 @@ jobs:
         # GitHub Actions автоматически скрывает secrets в логах
         # Они будут показаны как ***
 
-      - name: Verify settings.ini created
+      - name: Verify settings.inf created
         run: |
-          if [ -f settings.ini ]; then
-            echo "✅ settings.ini created successfully"
-            echo "File content (secrets are masked):"
-            cat settings.ini
+          if [ -f settings.inf ]; then
+            echo "✅ settings.inf created successfully"
+            ls -la settings.inf
           else
-            echo "❌ Failed to create settings.ini"
+            echo "❌ Failed to create settings.inf"
             exit 1
           fi
 
@@ -60,8 +59,8 @@ jobs:
         if: always()
         run: docker compose down
 
-      - name: Clean up settings.ini
+      - name: Clean up settings.inf
         if: always()
         run: |
-          rm -f settings.ini
-          echo "🧹 settings.ini removed"
+          rm -f settings.inf
+          echo "🧹 settings.inf removed"
