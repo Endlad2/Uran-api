@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  telegram-server:
+    build: .
+    container_name: telegram-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./sessions:/app/sessions
+      - ./settings.inf:/app/settings.inf:ro
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
