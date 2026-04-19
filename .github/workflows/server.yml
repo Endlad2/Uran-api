@@ -1,4 +1,4 @@
-name: Docker Daily Server
+name: Docker Compose Test
 
 on:
   push:
@@ -14,23 +14,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create settings.ini from secrets
+        run: |
+          cat > settings.ini << EOF
+          [Telegram]
+          api_id = ${{ secrets.TELEGRAM_API_ID }}
+          api_hash = ${{ secrets.TELEGRAM_API_HASH }}
+          
+          [Server]
+          port = 8080
+          host = 0.0.0.0
+          EOF
+        # GitHub Actions автоматически скрывает secrets в логах
+        # Они будут показаны как ***
+
+      - name: Verify settings.ini created
+        run: |
+          if [ -f settings.ini ]; then
+            echo "✅ settings.ini created successfully"
+            echo "File content (secrets are masked):"
+            cat settings.ini
+          else
+            echo "❌ Failed to create settings.ini"
+            exit 1
+          fi
+
       - name: Start Docker Compose
         run: docker compose up -d
 
       - name: Show logs and wait for containers
         run: |
-          echo "Waiting for containers to be ready..."
+          echo "⏳ Waiting for containers to be ready..."
           sleep 5
           
-          echo "=== Container logs ==="
+          echo "📋 Container logs:"
           docker compose logs --tail=50
           
-          echo "Waiting for containers to finish..."
+          echo "⏳ Waiting for containers to finish..."
           docker compose wait
           
-          echo "=== Final logs ==="
+          echo "📋 Final logs:"
           docker compose logs
 
       - name: Stop and clean up containers
         if: always()
         run: docker compose down
+
+      - name: Clean up settings.ini
+        if: always()
+        run: |
+          rm -f settings.ini
+          echo "🧹 settings.ini removed"
