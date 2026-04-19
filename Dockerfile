@@ -19,7 +19,7 @@ COPY settings.inf .
 COPY requirements.txt .
 
 # Устанавливаем Python зависимости
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Создаем директорию для сессий
 RUN mkdir -p sessions
