@@ -10,7 +10,7 @@ from telethon.sessions import StringSession
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-# Загружаем конфиг
+
 config = configparser.ConfigParser()
 config.read('settings.inf')
 
