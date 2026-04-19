@@ -1,0 +1,39 @@
+name: Docker Daily Server
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start Docker Compose
+        run: docker-compose up -d
+
+      - name: Show logs and wait for containers
+        run: |
+          echo "Waiting for containers to be ready..."
+          sleep 5
+          
+          # Показываем логи всех контейнеров
+          echo "=== Container logs ==="
+          docker-compose logs --tail=50
+          
+          # Ждем, пока все контейнеры завершатся
+          echo "Waiting for containers to finish..."
+          docker-compose wait
+          
+          # Показываем финальные логи после завершения
+          echo "=== Final logs ==="
+          docker-compose logs
+
+      - name: Stop and clean up containers
+        if: always()
+        run: docker-compose down
