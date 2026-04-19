@@ -41,20 +41,7 @@ jobs:
       - name: Start Docker Compose
         run: docker compose up -d
 
-      - name: Show logs and wait for containers
-        run: |
-          echo "⏳ Waiting for containers to be ready..."
-          sleep 5
-          
-          echo "📋 Container logs:"
-          docker compose logs --tail=50
-          
-          echo "⏳ Waiting for containers to finish..."
-          docker compose wait
-          
-          echo "📋 Final logs:"
-          docker compose logs
-
+     
       - name: Stop and clean up containers
         if: always()
         run: docker compose down
