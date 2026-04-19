@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram API Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .sidebar {
+            float: left;
+            width: 280px;
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        .main-content {
+            margin-left: 310px;
+        }
+        
+        .nav-section {
+            margin-bottom: 20px;
+        }
+        
+        .nav-section h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #3498db;
+        }
+        
+        .nav-links {
+            list-style: none;
+        }
+        
+        .nav-links li {
+            margin-bottom: 8px;
+        }
+        
+        .nav-links a {
+            color: #555;
+            text-decoration: none;
+            display: block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .nav-links a:hover {
+            background: #f0f0f0;
+            color: #3498db;
+            padding-left: 15px;
+        }
+        
+        .endpoint {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .endpoint h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        
+        .method.get { background: #28a745; color: white; }
+        .method.post { background: #007bff; color: white; }
+        .method.delete { background: #dc3545; color: white; }
+        .method.put { background: #ffc107; color: #333; }
+        
+        .url {
+            font-family: 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        
+        .params {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .params-title {
+            background: #e9ecef;
+            padding: 10px 15px;
+            font-weight: bold;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .param-row {
+            display: flex;
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .param-name {
+            width: 150px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .param-type {
+            width: 100px;
+            color: #6c757d;
+            font-size: 12px;
+        }
+        
+        .param-desc {
+            flex: 1;
+            color: #666;
+        }
+        
+        .param-required {
+            width: 80px;
+            color: #dc3545;
+            font-size: 12px;
+        }
+        
+        .response {
+            background: #2d2d2d;
+            color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        
+        .response pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .example {
+            background: #e7f3ff;
+            border-left: 3px solid #3498db;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .example pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+        
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                float: none;
+                width: 100%;
+                position: relative;
+                margin-bottom: 30px;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            transition: all 0.3s;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Telegram API Documentation</h1>
+            <p>REST API для работы с Telegram через Telethon</p>
+            <div class="badge">Base URL: http://localhost:8080</div>
+            <div class="badge">Version 1.0.0</div>
+        </div>
+        
+        <div class="content clearfix">
+            <div class="sidebar">
+                <input type="text" class="search-box" id="search" placeholder="🔍 Поиск эндпоинтов...">
+                
+                <div class="nav-section">
+                    <h3>🔐 Авторизация</h3>
+                    <ul class="nav-links">
+                        <li><a href="#login-phone">Отправка кода</a></li>
+                        <li><a href="#login-code">Подтверждение кода</a></li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <h3>👤 Пользователи</h3>
+                    <ul class="nav-links">
+                        <li><a href="#get-me">Информация о себе</a></li>
+                        <li><a href="#get-user-info">Информация о пользователе</a></li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <h3>💬 Сообщения</h3>
+                    <ul class="nav-links">
+                        <li><a href="#send-message">Отправка сообщения</a></li>
+                        <li><a href="#get-messages">Получение сообщений</a></li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <h3>📋 Диалоги</h3>
+                    <ul class="nav-links">
+                        <li><a href="#get-dialogs">Список диалогов</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <!-- Авторизация -->
+                <div id="login-phone" class="endpoint">
+                    <h2>
+                        <span class="method get">GET</span>
+                        Отправка кода подтверждения
+                    </h2>
+                    <div class="url">/telegram/login/phone/1?num={phone}</div>
+                    <div class="description">
+                        Отправляет код подтверждения на указанный номер телефона.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Параметры запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">num</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Номер телефона в международном формате (например: +79257025543)</div>
+                            <div class="param-required">required</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true,
+  "data": {
+    "message": "Code sent",
+    "temp_id": "a1b2c3d4e5f6..."
+  }
+}</pre>
+                    </div>
+                    
+                    <div class="example">
+                        <strong>📝 Пример запроса (cURL):</strong>
+                        <pre>curl "http://localhost:8080/telegram/login/phone/1?num=%2B79257025543"</pre>
+                    </div>
+                </div>
+                
+                <div id="login-code" class="endpoint">
+                    <h2>
+                        <span class="method get">GET</span>
+                        Подтверждение кода
+                    </h2>
+                    <div class="url">/telegram/login/phone/2?code={code}&temp_id={temp_id}</div>
+                    <div class="description">
+                        Подтверждает код из SMS и возвращает данные сессии.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Параметры запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">code</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Код из SMS</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">temp_id</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Временный ID из предыдущего запроса</div>
+                            <div class="param-required">required</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true,
+  "data": {
+    "session_data": "base64_encoded_session_string",
+    "message": "Login successful"
+  }
+}</pre>
+                    </div>
+                    
+                    <div class="example">
+                        <strong>📝 Пример запроса (cURL):</strong>
+                        <pre>curl "http://localhost:8080/telegram/login/phone/2?code=12345&temp_id=a1b2c3d4e5f6"</pre>
+                    </div>
+                </div>
+                
+                <!-- Пользователи -->
+                <div id="get-me" class="endpoint">
+                    <h2>
+                        <span class="method post">POST</span>
+                        Информация о себе
+                    </h2>
+                    <div class="url">/telegram/get_me</div>
+                    <div class="description">
+                        Возвращает информацию о текущем авторизованном пользователе.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Тело запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">session.data</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Данные сессии в base64</div>
+                            <div class="param-required">required</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true,
+  "data": {
+    "ID": 123456789,
+    "FirstName": "Влад",
+    "LastName": "Гроза",
+    "Username": "Endlad7373",
+    "Phone": "79257025543"
+  }
+}</pre>
+                    </div>
+                    
+                    <div class="example">
+                        <strong>📝 Пример запроса (cURL):</strong>
+                        <pre>curl -X POST http://localhost:8080/telegram/get_me \
+  -H "Content-Type: application/json" \
+  -d '{"session": {"data": "base64_session_string"}}'</pre>
+                    </div>
+                </div>
+                
+                <div id="get-user-info" class="endpoint">
+                    <h2>
+                        <span class="method post">POST</span>
+                        Информация о пользователе
+                    </h2>
+                    <div class="url">/telegram/get_user_info</div>
+                    <div class="description">
+                        Возвращает информацию о пользователе по username, включая фото профиля.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Тело запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">session.data</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Данные сессии в base64</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">username</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Username пользователя (с @ или без)</div>
+                            <div class="param-required">required</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true,
+  "data": {
+    "id": 123456789,
+    "first_name": "Pavel",
+    "last_name": "Durov",
+    "username": "durov",
+    "is_bot": false,
+    "is_verified": true,
+    "is_premium": false,
+    "photo": {
+      "has_photo": true,
+      "photo_base64": "/9j/4AAQSkZJRg...",
+      "photo_size": 12345
+    }
+  }
+}</pre>
+                    </div>
+                </div>
+                
+                <!-- Сообщения -->
+                <div id="send-message" class="endpoint">
+                    <h2>
+                        <span class="method post">POST</span>
+                        Отправка сообщения
+                    </h2>
+                    <div class="url">/telegram/send_message</div>
+                    <div class="description">
+                        Отправляет текстовое сообщение пользователю или в чат.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Тело запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">session.data</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Данные сессии в base64</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">peer</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Username получателя (без @)</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">message</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Текст сообщения</div>
+                            <div class="param-required">required</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true
+}</pre>
+                    </div>
+                </div>
+                
+                <div id="get-messages" class="endpoint">
+                    <h2>
+                        <span class="method post">POST</span>
+                        Получение сообщений
+                    </h2>
+                    <div class="url">/telegram/get_messages</div>
+                    <div class="description">
+                        Получает историю сообщений с указанным пользователем.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Тело запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">session.data</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Данные сессии в base64</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">peer</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Username пользователя (без @)</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">limit</div>
+                            <div class="param-type">int</div>
+                            <div class="param-desc">Количество сообщений (по умолчанию 50)</div>
+                            <div class="param-required">optional</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true,
+  "data": [
+    {
+      "id": 123,
+      "text": "Hello!",
+      "date": 1700000000,
+      "out": false
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+                
+                <!-- Диалоги -->
+                <div id="get-dialogs" class="endpoint">
+                    <h2>
+                        <span class="method post">POST</span>
+                        Список диалогов
+                    </h2>
+                    <div class="url">/telegram/get_dialogs</div>
+                    <div class="description">
+                        Возвращает список всех диалогов (чатов) пользователя.
+                    </div>
+                    
+                    <div class="params">
+                        <div class="params-title">📌 Тело запроса</div>
+                        <div class="param-row">
+                            <div class="param-name">session.data</div>
+                            <div class="param-type">string</div>
+                            <div class="param-desc">Данные сессии в base64</div>
+                            <div class="param-required">required</div>
+                        </div>
+                        <div class="param-row">
+                            <div class="param-name">limit</div>
+                            <div class="param-type">int</div>
+                            <div class="param-desc">Количество диалогов (по умолчанию 50)</div>
+                            <div class="param-required">optional</div>
+                        </div>
+                    </div>
+                    
+                    <div class="response">
+                        <strong>📤 Пример ответа:</strong>
+                        <pre>{
+  "success": true,
+  "data": [
+    {
+      "name": "durov",
+      "id": 123456789,
+      "unread": 0
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <p>© 2024 Telegram API | Base URL: http://localhost:8080</p>
+                    <p>Для работы требуется файл settings.inf с API ID и Hash</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Поиск эндпоинтов
+        const searchInput = document.getElementById('search');
+        const endpoints = document.querySelectorAll('.endpoint');
+        const navLinks = document.querySelectorAll('.nav-links a');
+        
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            
+            endpoints.forEach(endpoint => {
+                const text = endpoint.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    endpoint.style.display = 'block';
+                } else {
+                    endpoint.style.display = 'none';
+                }
+            });
+            
+            navLinks.forEach(link => {
+                const href = link.getAttribute('href');
+                const targetEndpoint = document.querySelector(href);
+                if (targetEndpoint && targetEndpoint.style.display !== 'none') {
+                    link.style.display = 'block';
+                } else if (targetEndpoint) {
+                    link.style.display = 'none';
+                } else {
+                    link.style.display = 'block';
+                }
+            });
+        });
+        
+        // Плавная прокрутка
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
