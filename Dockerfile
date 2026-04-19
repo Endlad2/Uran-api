@@ -7,12 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Обновляем систему и устанавливаем зависимости
 RUN apt-get update && apt-get install -y \
-    python3.11 \
-    python3-pip \
-    wget \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+    python3 \
+    python3-pip
 
 # Создаем рабочую директорию
 WORKDIR /app
