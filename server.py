@@ -6,6 +6,7 @@ from quart import Quart, request, jsonify
 from quart_cors import cors
 from telethon import TelegramClient
 from telethon.sessions import StringSession
+from telethon.tl.types import PeerUser
 
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
@@ -160,7 +161,13 @@ async def send_message():
     try:
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
-        entity = await client.get_entity(identifier)
+        
+        try:
+            entity = await client.get_entity(identifier)
+        except:
+            from telethon.tl.types import PeerUser
+            entity = PeerUser(user_id=int(identifier))
+        
         await client.send_message(entity, message)
         await client.disconnect()
         return jsonify({'success': True})
@@ -182,28 +189,19 @@ async def get_dialogs():
     try:
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
-        dialogs = await client.get_dialogs(limit=limit)
-        await client.disconnect()
         
         result = []
-        for dialog in dialogs:
+        async for dialog in client.iter_dialogs(limit=limit):
             entity = dialog.entity
-            
-            if hasattr(entity, 'username') and entity.username:
-                peer = f"@{entity.username}"
-                result.append({
-                    'name': dialog.name,
-                    'peer': peer,
-                    'user_id': entity.id,
-                    'unread': dialog.unread_count
-                })
-            else:
-                result.append({
-                    'name': dialog.name,
-                    'peer': str(entity.id),
-                    'user_id': entity.id,
-                    'unread': dialog.unread_count
-                })
+            result.append({
+                'name': dialog.name,
+                'peer': str(entity.id),
+                'user_id': entity.id,
+                'unread': dialog.unread_count,
+                'username': getattr(entity, 'username', None)
+            })
+        
+        await client.disconnect()
         
         return jsonify({'success': True, 'data': result})
     except Exception as e:
@@ -230,9 +228,9 @@ async def get_photo():
         
         try:
             entity = await client.get_entity(int(user_id))
-        except Exception as e:
-            await client.disconnect()
-            return jsonify({'success': False, 'error': f'User not found: {str(e)}'})
+        except:
+            from telethon.tl.types import PeerUser
+            entity = PeerUser(user_id=int(user_id))
         
         photo_base64 = None
         if hasattr(entity, 'photo') and entity.photo:
@@ -285,9 +283,12 @@ async def get_user_info():
         
         try:
             entity = await client.get_entity(identifier)
-        except Exception as e:
-            await client.disconnect()
-            return jsonify({'success': False, 'error': f'User not found: {str(e)}'})
+        except:
+            if isinstance(identifier, int):
+                from telethon.tl.types import PeerUser
+                entity = PeerUser(user_id=identifier)
+            else:
+                raise
         
         photo_base64 = None
         photo_info = None
@@ -312,7 +313,7 @@ async def get_user_info():
             photo_info = {'has_photo': False, 'reason': 'User has no profile photo'}
         
         result = {
-            'id': entity.id,
+            'id': entity.id if hasattr(entity, 'id') else identifier,
             'first_name': getattr(entity, 'first_name', ''),
             'last_name': getattr(entity, 'last_name', ''),
             'username': getattr(entity, 'username', ''),
@@ -363,24 +364,80 @@ async def get_messages():
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
         
-        entity = await client.get_entity(identifier)
+        try:
+            entity = await client.get_entity(identifier)
+        except:
+            if isinstance(identifier, int):
+                entity = PeerUser(user_id=identifier)
+            else:
+                raise
         
-        messages = await client.get_messages(entity, limit=limit, offset_id=offset_id)
-        
-        await client.disconnect()
-        
-        result = []
-        for msg in messages:
-            result.append({
+        messages = []
+        async for msg in client.iter_messages(entity, limit=limit, offset_id=offset_id):
+            sender_name = "Unknown"
+            if msg.sender:
+                if hasattr(msg.sender, 'first_name'):
+                    sender_name = f"{msg.sender.first_name or ''} {msg.sender.last_name or ''}".strip() or msg.sender.username or "Unknown"
+                else:
+                    sender_name = str(msg.sender)
+            
+            messages.append({
                 'id': msg.id,
                 'text': msg.text or '',
                 'date': msg.date.timestamp() if msg.date else 0,
-                'out': msg.out
+                'date_str': msg.date.isoformat() if msg.date else None,
+                'out': msg.out,
+                'sender': sender_name,
+                'has_media': bool(msg.media)
             })
         
-        return jsonify({'success': True, 'data': result})
+        await client.disconnect()
+        
+        return jsonify({'success': True, 'data': messages})
     except Exception as e:
         print(f"Messages error: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/telegram/get_all_messages', methods=['POST'])
+async def get_all_messages():
+    data = await request.get_json()
+    session_base64 = data.get('session', {}).get('data')
+    user_id = data.get('user_id')
+    
+    if not session_base64 or not user_id:
+        return jsonify({'success': False, 'error': 'Session and user_id required'})
+    
+    session_string = base64.b64decode(session_base64).decode()
+    
+    try:
+        client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
+        await client.connect()
+        
+        try:
+            entity = await client.get_entity(int(user_id))
+        except:
+            entity = PeerUser(user_id=int(user_id))
+        
+        messages = []
+        async for msg in client.iter_messages(entity, limit=None):
+            sender_name = "Unknown"
+            if msg.sender:
+                if hasattr(msg.sender, 'first_name'):
+                    sender_name = f"{msg.sender.first_name or ''} {msg.sender.last_name or ''}".strip() or msg.sender.username or "Unknown"
+            
+            messages.append({
+                'id': msg.id,
+                'text': msg.text or '',
+                'date': msg.date.timestamp() if msg.date else 0,
+                'out': msg.out,
+                'sender': sender_name
+            })
+        
+        await client.disconnect()
+        
+        return jsonify({'success': True, 'data': messages})
+    except Exception as e:
+        print(f"All messages error: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/health', methods=['GET'])
