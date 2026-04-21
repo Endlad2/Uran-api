@@ -154,7 +154,7 @@ async def send_message():
 
 @app.route('/telegram/get_dialogs', methods=['POST'])
 async def get_dialogs():
-    """Получение списка диалогов с полной информацией"""
+    """Получение списка диалогов - только с username"""
     data = await request.get_json()
     session_base64 = data.get('session', {}).get('data')
     limit = data.get('limit', 100)
@@ -174,40 +174,16 @@ async def get_dialogs():
         for dialog in dialogs:
             entity = dialog.entity
             
-            # Определяем peer (username или ID)
-            peer = None
-            peer_type = 'unknown'
-            
+            # Проверяем наличие username
             if hasattr(entity, 'username') and entity.username:
                 peer = f"@{entity.username}"
-                peer_type = 'username'
-            elif hasattr(entity, 'id'):
-                # Для каналов ID обычно отрицательный
-                peer = str(entity.id)
-                peer_type = 'id'
-            
-            # Определяем тип чата
-            chat_type = 'user'
-            if dialog.is_channel:
-                chat_type = 'channel'
-            elif dialog.is_group:
-                chat_type = 'group'
-            elif dialog.is_user:
-                chat_type = 'user'
-            
-            result.append({
-                'id': dialog.id,
-                'name': dialog.name,
-                'peer': peer,  # Основное поле для использования в get_messages
-                'peer_id': entity.id if hasattr(entity, 'id') else None,
-                'peer_type': peer_type,
-                'chat_type': chat_type,
-                'unread': dialog.unread_count,
-                'message': {
-                    'text': dialog.message.text if dialog.message else None,
-                    'date': dialog.message.date.timestamp() if dialog.message and dialog.message.date else None
-                } if dialog.message else None
-            })
+                result.append({
+                    'name': dialog.name,
+                    'peer': peer,
+                    'unread': dialog.unread_count
+                })
+            # Если username нет - пропускаем (не добавляем в результат)
+            # else: пропускаем чат без username
         
         return jsonify({'success': True, 'data': result})
     except Exception as e:
