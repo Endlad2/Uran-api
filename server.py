@@ -10,7 +10,6 @@ from telethon.sessions import StringSession
 app = Quart(__name__)
 app = cors(app, allow_origin="*")
 
-
 config = configparser.ConfigParser()
 config.read('settings.inf')
 
@@ -20,7 +19,6 @@ API_HASH = config['Telegram']['api_hash']
 print(f"API ID: {API_ID}")
 print(f"API Hash: {API_HASH[:10]}...")
 
-# Хранилище временных данных
 auth_flows = {}
 
 @app.route('/telegram/login/phone/1', methods=['GET'])
@@ -134,17 +132,35 @@ async def send_message():
     data = await request.get_json()
     session_base64 = data.get('session', {}).get('data')
     peer = data.get('peer')
+    user_id = data.get('user_id')
     message = data.get('message')
     
-    if not all([session_base64, peer, message]):
-        return jsonify({'success': False, 'error': 'Missing fields'})
+    if not session_base64:
+        return jsonify({'success': False, 'error': 'Session required'})
+    
+    if not message:
+        return jsonify({'success': False, 'error': 'Message required'})
+    
+    identifier = None
+    if user_id is not None:
+        try:
+            identifier = int(user_id)
+        except (ValueError, TypeError):
+            identifier = str(user_id)
+    elif peer is not None:
+        if isinstance(peer, str) and peer.isdigit():
+            identifier = int(peer)
+        else:
+            identifier = peer
+    else:
+        return jsonify({'success': False, 'error': 'Missing peer or user_id'})
     
     session_string = base64.b64decode(session_base64).decode()
     
     try:
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
-        entity = await client.get_entity(peer)
+        entity = await client.get_entity(identifier)
         await client.send_message(entity, message)
         await client.disconnect()
         return jsonify({'success': True})
@@ -154,7 +170,6 @@ async def send_message():
 
 @app.route('/telegram/get_dialogs', methods=['POST'])
 async def get_dialogs():
-    """Получение списка диалогов - только с username"""
     data = await request.get_json()
     session_base64 = data.get('session', {}).get('data')
     limit = data.get('limit', 100)
@@ -174,16 +189,21 @@ async def get_dialogs():
         for dialog in dialogs:
             entity = dialog.entity
             
-            # Проверяем наличие username
             if hasattr(entity, 'username') and entity.username:
                 peer = f"@{entity.username}"
                 result.append({
                     'name': dialog.name,
                     'peer': peer,
+                    'user_id': entity.id,
                     'unread': dialog.unread_count
                 })
-            # Если username нет - пропускаем (не добавляем в результат)
-            # else: пропускаем чат без username
+            else:
+                result.append({
+                    'name': dialog.name,
+                    'peer': str(entity.id),
+                    'user_id': entity.id,
+                    'unread': dialog.unread_count
+                })
         
         return jsonify({'success': True, 'data': result})
     except Exception as e:
@@ -192,7 +212,6 @@ async def get_dialogs():
         
 @app.route('/telegram/get_photo', methods=['POST'])
 async def get_photo():
-    """Скачивание фото пользователя по ID"""
     data = await request.get_json()
     session_base64 = data.get('session', {}).get('data')
     user_id = data.get('user_id')
@@ -209,17 +228,16 @@ async def get_photo():
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
         
-        # Получаем пользователя по ID
         try:
             entity = await client.get_entity(int(user_id))
         except Exception as e:
             await client.disconnect()
             return jsonify({'success': False, 'error': f'User not found: {str(e)}'})
         
-        # Скачиваем фото
         photo_base64 = None
         if hasattr(entity, 'photo') and entity.photo:
             try:
+                from io import BytesIO
                 file = await client.download_profile_photo(entity, bytesIO=True)
                 if file:
                     photo_base64 = base64.b64encode(file.getvalue()).decode()
@@ -236,23 +254,28 @@ async def get_photo():
         print(f"Get photo error: {e}")
         return jsonify({'success': False, 'error': str(e)})
         
-        
 @app.route('/telegram/get_user_info', methods=['POST'])
 async def get_user_info():
-    """Получение информации о пользователе по username (имя + фото профиля)"""
     data = await request.get_json()
     session_base64 = data.get('session', {}).get('data')
+    user_id = data.get('user_id')
     username = data.get('username', '').strip()
     
     if not session_base64:
         return jsonify({'success': False, 'error': 'Session required'})
     
-    if not username:
-        return jsonify({'success': False, 'error': 'Username required'})
-    
-    # Убираем @ если есть
-    if username.startswith('@'):
-        username = username[1:]
+    identifier = None
+    if user_id is not None:
+        try:
+            identifier = int(user_id)
+        except (ValueError, TypeError):
+            identifier = str(user_id)
+    elif username:
+        if username.startswith('@'):
+            username = username[1:]
+        identifier = username
+    else:
+        return jsonify({'success': False, 'error': 'Either user_id or username required'})
     
     session_string = base64.b64decode(session_base64).decode()
     
@@ -260,20 +283,18 @@ async def get_user_info():
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
         
-        # Получаем информацию о пользователе
         try:
-            entity = await client.get_entity(username)
+            entity = await client.get_entity(identifier)
         except Exception as e:
             await client.disconnect()
             return jsonify({'success': False, 'error': f'User not found: {str(e)}'})
         
-        # Получаем фото профиля
         photo_base64 = None
         photo_info = None
         
         if hasattr(entity, 'photo') and entity.photo:
             try:
-                # Получаем файл фото
+                from io import BytesIO
                 file = await client.download_profile_photo(entity, bytesIO=True)
                 if file:
                     photo_base64 = base64.b64encode(file.getvalue()).decode()
@@ -290,7 +311,6 @@ async def get_user_info():
         else:
             photo_info = {'has_photo': False, 'reason': 'User has no profile photo'}
         
-        # Формируем результат
         result = {
             'id': entity.id,
             'first_name': getattr(entity, 'first_name', ''),
@@ -316,18 +336,37 @@ async def get_messages():
     data = await request.get_json()
     session_base64 = data.get('session', {}).get('data')
     peer = data.get('peer')
+    user_id = data.get('user_id')
     limit = data.get('limit', 50)
+    offset_id = data.get('offset_id', 0)
     
-    if not all([session_base64, peer]):
-        return jsonify({'success': False, 'error': 'Missing fields'})
+    if not session_base64:
+        return jsonify({'success': False, 'error': 'Session required'})
+    
+    identifier = None
+    if user_id is not None:
+        try:
+            identifier = int(user_id)
+        except (ValueError, TypeError):
+            identifier = str(user_id)
+    elif peer is not None:
+        if isinstance(peer, str) and peer.isdigit():
+            identifier = int(peer)
+        else:
+            identifier = peer
+    else:
+        return jsonify({'success': False, 'error': 'Missing peer or user_id'})
     
     session_string = base64.b64decode(session_base64).decode()
     
     try:
         client = TelegramClient(StringSession(session_string), API_ID, API_HASH)
         await client.connect()
-        entity = await client.get_entity(peer)
-        messages = await client.get_messages(entity, limit=limit)
+        
+        entity = await client.get_entity(identifier)
+        
+        messages = await client.get_messages(entity, limit=limit, offset_id=offset_id)
+        
         await client.disconnect()
         
         result = []
@@ -338,6 +377,7 @@ async def get_messages():
                 'date': msg.date.timestamp() if msg.date else 0,
                 'out': msg.out
             })
+        
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         print(f"Messages error: {e}")
