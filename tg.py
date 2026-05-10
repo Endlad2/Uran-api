@@ -1,5 +1,3 @@
-# telegram_bot_api.py
-
 import asyncio
 import json
 import sqlite3
@@ -18,34 +16,19 @@ import time
 from io import BytesIO
 import configparser
 
-# Чтение конфигурации из tg_config.ini
 config = configparser.ConfigParser()
 config_path = 'tg_config.ini'
 
 if not os.path.exists(config_path):
-    # Создаем пример конфигурации, если файла нет
-    config['Telegram'] = {
-        'api_id': 'YOUR_API_ID',
-        'api_hash': 'YOUR_API_HASH'
-    }
-    with open(config_path, 'w') as f:
-        config.write(f)
-    print(f"Создан файл конфигурации {config_path}")
-    print("Пожалуйста, отредактируйте его, указав ваши API_ID и API_HASH из https://my.telegram.org/apps")
-    exit(1)
+    print(f"Файл конфигурации {config_path} не найден")
+    print("Используйте POST /configure?app_id=YOUR_API_ID&app_hash=YOUR_API_HASH для настройки")
+    API_ID = None
+    API_HASH = None
+else:
+    config.read(config_path)
+    API_ID = config.getint('Telegram', 'api_id') if config.has_section('Telegram') and config.has_option('Telegram', 'api_id') else None
+    API_HASH = config.get('Telegram', 'api_hash') if config.has_section('Telegram') and config.has_option('Telegram', 'api_hash') else None
 
-# Загружаем конфигурацию
-config.read(config_path)
-API_ID = config.getint('Telegram', 'api_id')
-API_HASH = config.get('Telegram', 'api_hash')
-
-# Проверка валидности конфигурации
-if API_ID == 0 or API_HASH == 'YOUR_API_HASH':
-    print("Ошибка: Пожалуйста, укажите корректные API_ID и API_HASH в файле tg_config.ini")
-    print("Получить их можно на https://my.telegram.org/apps")
-    exit(1)
-
-# Конфигурация сервера
 PORT = 9870
 BASE_URL = f'http://localhost:{PORT}'
 CACHE_ARCHIVE = 'cache.zip'
@@ -71,7 +54,6 @@ class TelegramCacheManager:
         self.start_cleanup_scheduler()
     
     def init_database(self):
-        """Инициализация SQLite базы данных"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -130,23 +112,19 @@ class TelegramCacheManager:
         conn.close()
     
     def init_archives(self):
-        """Инициализация архивов"""
         if not os.path.exists(self.cache_archive):
             with zipfile.ZipFile(self.cache_archive, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 pass
     
     def generate_asset_id(self, chat_id, message_id, asset_type):
-        """Генерация уникального asset_id"""
         unique_str = f"{chat_id}_{message_id}_{asset_type}"
         return hashlib.md5(unique_str.encode()).hexdigest()[:20]
     
     def generate_random_filename(self, extension):
-        """Генерация случайного имени файла"""
         chars = string.ascii_letters + string.digits
         return ''.join(random.choice(chars) for _ in range(20)) + extension
     
     def get_asset_url(self, asset_type, asset_id):
-        """Генерация URL для получения ассета"""
         if asset_type == 'photo':
             return f"{self.base_url}/get_asset/photo?asset_id={asset_id}"
         elif asset_type == 'video' or asset_type == 'video_note':
@@ -158,10 +136,8 @@ class TelegramCacheManager:
         return None
     
     async def download_and_cache_asset(self, message, chat_id, message_id, asset_type):
-        """Скачивание и кэширование ассета"""
         asset_id = self.generate_asset_id(chat_id, message_id, asset_type)
         
-        # Проверяем, не кэширован ли уже
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT file_name FROM assets WHERE asset_id = ?", (asset_id,))
@@ -253,7 +229,6 @@ class TelegramCacheManager:
         return asset_id
     
     async def get_asset_file(self, asset_id):
-        """Получение файла ассета"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -281,7 +256,6 @@ class TelegramCacheManager:
         return None, None
     
     async def download_large_video(self, asset_id, chat_id, message_id):
-        """Скачивание большого видео на лету"""
         try:
             entity = await self.client.get_entity(int(chat_id))
             message = await self.client.get_messages(entity, ids=int(message_id))
@@ -297,7 +271,6 @@ class TelegramCacheManager:
         return None
     
     def cleanup_cache(self):
-        """Очистка кэша"""
         print("Запуск очистки кэша...")
         
         conn = sqlite3.connect(self.db_path)
@@ -319,7 +292,6 @@ class TelegramCacheManager:
         print("Очистка кэша завершена")
     
     def start_cleanup_scheduler(self):
-        """Запуск планировщика очистки"""
         def cleanup_job():
             while True:
                 time.sleep(CLEANUP_INTERVAL_HOURS * 3600)
@@ -329,14 +301,14 @@ class TelegramCacheManager:
         cleanup_thread.start()
     
     async def get_client(self):
-        """Получение экземпляра клиента"""
         if not self.client or not self.client.is_connected():
+            if not self.api_id or not self.api_hash:
+                raise Exception("API_ID и API_HASH не настроены. Используйте POST /configure")
             self.client = TelegramClient(self.session_name, self.api_id, self.api_hash)
             await self.client.connect()
         return self.client
     
     async def cache_chats(self, chats_data):
-        """Кэширование списка чатов"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
@@ -347,7 +319,6 @@ class TelegramCacheManager:
         conn.close()
     
     async def get_cached_chats(self):
-        """Получение кэшированного списка чатов"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT chat_data FROM chats_cache WHERE id = 1")
@@ -356,7 +327,6 @@ class TelegramCacheManager:
         return json.loads(result[0]) if result else None
     
     async def cache_messages(self, chat_id, messages_data):
-        """Кэширование сообщений чата"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
@@ -367,7 +337,6 @@ class TelegramCacheManager:
         conn.close()
     
     async def get_cached_messages(self, chat_id):
-        """Получение кэшированных сообщений"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT messages FROM messages_cache WHERE chat_id = ?", (str(chat_id),))
@@ -380,7 +349,6 @@ cache_manager = TelegramCacheManager()
 
 
 def run_async(coro):
-    """Запуск асинхронной функции в синхронном контексте"""
     global event_loop
     
     if event_loop is None or event_loop.is_closed():
@@ -388,6 +356,35 @@ def run_async(coro):
         asyncio.set_event_loop(event_loop)
     
     return event_loop.run_until_complete(coro)
+
+
+@app.route('/configure', methods=['POST'])
+def configure():
+    app_id = request.args.get('app_id')
+    app_hash = request.args.get('app_hash')
+    
+    if not app_id or not app_hash:
+        return jsonify({'error': 'app_id and app_hash are required'}), 400
+    
+    try:
+        config = configparser.ConfigParser()
+        config['Telegram'] = {
+            'api_id': app_id,
+            'api_hash': app_hash
+        }
+        
+        with open(config_path, 'w') as f:
+            config.write(f)
+        
+        global API_ID, API_HASH, cache_manager
+        API_ID = int(app_id)
+        API_HASH = app_hash
+        cache_manager.api_id = API_ID
+        cache_manager.api_hash = API_HASH
+        
+        return jsonify({'status': 'success', 'message': 'Configuration saved'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/login/tel', methods=['GET'])
@@ -528,7 +525,6 @@ def get_messages_by_id():
 
 
 async def _process_messages(client, entity, limit):
-    """Обработка сообщений и извлечение ассетов"""
     chat_id = entity.id
     chat_name = entity.title if hasattr(entity, 'title') else (entity.first_name or entity.username)
     
@@ -784,32 +780,7 @@ def main():
     event_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(event_loop)
     
-    print("=" * 60)
-    print("Telegram API Сервер")
-    print("=" * 60)
-    print(f"API ID: {API_ID}")
-    print(f"API Hash: {API_HASH[:10]}...")
-    print(f"Порт: {PORT}")
-    print(f"База данных: {DB_NAME}")
-    print(f"Кэш архив: {CACHE_ARCHIVE}")
-    print(f"Очистка кэша: каждые {CLEANUP_INTERVAL_HOURS} час(а)")
-    print("=" * 60)
-    print("\nДоступные endpoints:")
-    print("  GET  /login/tel?number=+79991234567")
-    print("  GET  /login/tel/code?code=12345&phone=+79991234567")
-    print("  GET  /chat_list")
-    print("  GET  /get_messages/username?username=@user&limit=50")
-    print("  GET  /get_messages/id?id=123456&limit=50")
-    print("  POST /send_message/username?username=@user (body: {'message': 'text'})")
-    print("  POST /send_message/id?id=123456 (body: {'message': 'text'})")
-    print("  GET  /get_asset/avatar?id=123456")
-    print("  GET  /get_asset/avatar?username=@user")
-    print("  GET  /get_asset/photo?asset_id=xxxxx")
-    print("  GET  /get_asset/video?asset_id=xxxxx")
-    print("  GET  /get_asset/sticker?asset_id=xxxxx")
-    print("  GET  /get_asset/document?asset_id=xxxxx")
-    print("  POST /clean_cache")
-    print("=" * 60)
+
     
     app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
 
