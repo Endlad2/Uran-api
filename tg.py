@@ -16,6 +16,7 @@ import threading
 import time
 from io import BytesIO
 import configparser
+import concurrent.futures
 
 config = configparser.ConfigParser()
 config_path = 'tg_config.ini'
@@ -386,7 +387,46 @@ def run_async(coro):
         event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(event_loop)
     
-    return event_loop.run_until_complete(coro)
+    try:
+        if event_loop.is_running():
+            future = asyncio.run_coroutine_threadsafe(coro, event_loop)
+            return future.result()
+        else:
+            return event_loop.run_until_complete(coro)
+    except RuntimeError:
+        return event_loop.run_until_complete(coro)
+
+
+@app.route('/get_me', methods=['GET'])
+def get_me():
+    async def _get_me():
+        try:
+            client = await cache_manager.get_client()
+            
+            if not await client.is_user_authorized():
+                return jsonify({'error': 'Not authorized. Please login first'}), 401
+            
+            me = await client.get_me()
+            
+            user_data = {
+                'id': me.id,
+                'first_name': me.first_name,
+                'last_name': me.last_name,
+                'username': me.username,
+                'phone': me.phone,
+                'is_bot': me.bot,
+                'is_premium': getattr(me, 'premium', False),
+                'photo': {
+                    'id': getattr(me.photo, 'photo_id', None) if hasattr(me, 'photo') and me.photo else None,
+                    'has_photo': me.photo is not None
+                } if hasattr(me, 'photo') else {'has_photo': False}
+            }
+            
+            return jsonify({'status': 'success', 'user': user_data})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    return run_async(_get_me())
 
 
 @app.route('/configure', methods=['POST'])
@@ -612,14 +652,18 @@ async def _process_messages(client, entity, limit):
         if msg.sender:
             if isinstance(msg.sender, User):
                 sender_name = msg.sender.first_name or msg.sender.username or "Unknown"
+                sender_id = msg.sender.id
             else:
                 sender_name = msg.sender.title if hasattr(msg.sender, 'title') else "Channel"
+                sender_id = msg.sender.id if hasattr(msg.sender, 'id') else None
         else:
             sender_name = "Unknown"
+            sender_id = None
         
         message_data = {
             'id': msg.id,
             'sender': sender_name,
+            'sender_id': sender_id,
             'text': msg.text if msg.text else None,
             'date': msg.date.isoformat() if msg.date else None
         }
@@ -845,7 +889,10 @@ def main():
     global event_loop
     
     event_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(event_loop) 
+    asyncio.set_event_loop(event_loop)
+    
+
+    
     app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
 
 
