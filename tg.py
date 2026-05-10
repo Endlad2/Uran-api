@@ -408,6 +408,20 @@ def test_configure():
         return jsonify({'status': False, 'message': 'Configuration not filled or contains placeholder values'})
 
 
+@app.route('/test/auth', methods=['GET'])
+def test_auth():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT session_string FROM session WHERE id = 1")
+    result = cursor.fetchone()
+    conn.close()
+    
+    if result and result[0]:
+        return jsonify({'status': True, 'message': 'Active session found'})
+    else:
+        return jsonify({'status': False, 'message': 'No active session. Please login first'})
+
+
 @app.route('/login/tel', methods=['GET'])
 def login_tel():
     phone = request.args.get('number')
