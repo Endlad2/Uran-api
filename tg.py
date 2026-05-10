@@ -386,6 +386,27 @@ def configure():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/test/configure', methods=['GET'])
+def test_configure():
+    config = configparser.ConfigParser()
+    config_path = 'tg_config.ini'
+    
+    if not os.path.exists(config_path):
+        return jsonify({'status': False, 'message': 'Config file not found'})
+    
+    config.read(config_path)
+    
+    if not config.has_section('Telegram'):
+        return jsonify({'status': False, 'message': 'Telegram section not found'})
+    
+    api_id = config.get('Telegram', 'api_id') if config.has_option('Telegram', 'api_id') else None
+    api_hash = config.get('Telegram', 'api_hash') if config.has_option('Telegram', 'api_hash') else None
+    
+    if api_id and api_hash and api_id != 'YOUR_API_ID' and api_hash != 'YOUR_API_HASH':
+        return jsonify({'status': True, 'message': 'Configuration is valid'})
+    else:
+        return jsonify({'status': False, 'message': 'Configuration not filled or contains placeholder values'})
+
 
 @app.route('/login/tel', methods=['GET'])
 def login_tel():
