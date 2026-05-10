@@ -11,6 +11,7 @@ from flask import Flask, request, jsonify, send_file
 from telethon import TelegramClient, errors
 from telethon.errors import SessionPasswordNeededError
 from telethon.tl.types import User
+from telethon.sessions import StringSession
 import threading
 import time
 from io import BytesIO
@@ -134,6 +135,33 @@ class TelegramCacheManager:
         elif asset_type == 'document':
             return f"{self.base_url}/get_asset/document?asset_id={asset_id}"
         return None
+    
+    async def load_session(self):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT session_string FROM session WHERE id = 1")
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result and result[0]:
+            try:
+                session_string = result[0]
+                self.client = TelegramClient(StringSession(session_string), self.api_id, self.api_hash)
+                await self.client.connect()
+                
+                if await self.client.is_user_authorized():
+                    print("Сессия успешно загружена и авторизована")
+                    return True
+                else:
+                    print("Сохраненная сессия не авторизована")
+                    await self.client.disconnect()
+                    self.client = None
+                    return False
+            except Exception as e:
+                print(f"Ошибка загрузки сессии: {e}")
+                self.client = None
+                return False
+        return False
     
     async def download_and_cache_asset(self, message, chat_id, message_id, asset_type):
         asset_id = self.generate_asset_id(chat_id, message_id, asset_type)
@@ -304,8 +332,11 @@ class TelegramCacheManager:
         if not self.client or not self.client.is_connected():
             if not self.api_id or not self.api_hash:
                 raise Exception("API_ID и API_HASH не настроены. Используйте POST /configure")
-            self.client = TelegramClient(self.session_name, self.api_id, self.api_hash)
-            await self.client.connect()
+            
+            loaded = await self.load_session()
+            if not loaded:
+                self.client = TelegramClient(self.session_name, self.api_id, self.api_hash)
+                await self.client.connect()
         return self.client
     
     async def cache_chats(self, chats_data):
@@ -367,14 +398,14 @@ def configure():
         return jsonify({'error': 'app_id and app_hash are required'}), 400
     
     try:
-        config = configparser.ConfigParser()
-        config['Telegram'] = {
+        config_parser = configparser.ConfigParser()
+        config_parser['Telegram'] = {
             'api_id': app_id,
             'api_hash': app_hash
         }
         
         with open(config_path, 'w') as f:
-            config.write(f)
+            config_parser.write(f)
         
         global API_ID, API_HASH, cache_manager
         API_ID = int(app_id)
@@ -386,21 +417,21 @@ def configure():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/test/configure', methods=['GET'])
 def test_configure():
-    config = configparser.ConfigParser()
-    config_path = 'tg_config.ini'
+    config_parser = configparser.ConfigParser()
     
     if not os.path.exists(config_path):
         return jsonify({'status': False, 'message': 'Config file not found'})
     
-    config.read(config_path)
+    config_parser.read(config_path)
     
-    if not config.has_section('Telegram'):
+    if not config_parser.has_section('Telegram'):
         return jsonify({'status': False, 'message': 'Telegram section not found'})
     
-    api_id = config.get('Telegram', 'api_id') if config.has_option('Telegram', 'api_id') else None
-    api_hash = config.get('Telegram', 'api_hash') if config.has_option('Telegram', 'api_hash') else None
+    api_id = config_parser.get('Telegram', 'api_id') if config_parser.has_option('Telegram', 'api_id') else None
+    api_hash = config_parser.get('Telegram', 'api_hash') if config_parser.has_option('Telegram', 'api_hash') else None
     
     if api_id and api_hash and api_id != 'YOUR_API_ID' and api_hash != 'YOUR_API_HASH':
         return jsonify({'status': True, 'message': 'Configuration is valid'})
@@ -410,16 +441,17 @@ def test_configure():
 
 @app.route('/test/auth', methods=['GET'])
 def test_auth():
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute("SELECT session_string FROM session WHERE id = 1")
-    result = cursor.fetchone()
-    conn.close()
+    async def _check_auth():
+        try:
+            client = await cache_manager.get_client()
+            if await client.is_user_authorized():
+                return jsonify({'status': True, 'message': 'Active session found'})
+            else:
+                return jsonify({'status': False, 'message': 'No active session'})
+        except Exception as e:
+            return jsonify({'status': False, 'message': str(e)})
     
-    if result and result[0]:
-        return jsonify({'status': True, 'message': 'Active session found'})
-    else:
-        return jsonify({'status': False, 'message': 'No active session. Please login first'})
+    return run_async(_check_auth())
 
 
 @app.route('/login/tel', methods=['GET'])
@@ -488,31 +520,31 @@ def chat_list():
         try:
             client = await cache_manager.get_client()
             
-            try:
-                chats = []
-                async for dialog in client.iter_dialogs(limit=100):
-                    if isinstance(dialog.entity, User):
-                        name = dialog.entity.first_name or dialog.entity.username or str(dialog.entity.id)
-                        chat_type = "user"
-                    else:
-                        name = dialog.entity.title if hasattr(dialog.entity, 'title') else dialog.name
-                        chat_type = "channel"
-                    
-                    chats.append({
-                        'id': dialog.id,
-                        'name': name,
-                        'type': chat_type,
-                        'unread': dialog.unread_count
-                    })
+            if not await client.is_user_authorized():
+                return jsonify({'error': 'Not authorized. Please login first'}), 401
+            
+            chats = []
+            async for dialog in client.iter_dialogs(limit=100):
+                if isinstance(dialog.entity, User):
+                    name = dialog.entity.first_name or dialog.entity.username or str(dialog.entity.id)
+                    chat_type = "user"
+                else:
+                    name = dialog.entity.title if hasattr(dialog.entity, 'title') else dialog.name
+                    chat_type = "channel"
                 
-                await cache_manager.cache_chats(chats)
-                return jsonify({'chats': chats})
-            except Exception as e:
-                cached = await cache_manager.get_cached_chats()
-                if cached:
-                    return jsonify({'chats': cached, 'cached': True})
-                raise e
+                chats.append({
+                    'id': dialog.id,
+                    'name': name,
+                    'type': chat_type,
+                    'unread': dialog.unread_count
+                })
+            
+            await cache_manager.cache_chats(chats)
+            return jsonify({'chats': chats})
         except Exception as e:
+            cached = await cache_manager.get_cached_chats()
+            if cached:
+                return jsonify({'chats': cached, 'cached': True})
             return jsonify({'error': str(e)}), 500
     
     return run_async(_get_chats())
@@ -813,10 +845,7 @@ def main():
     global event_loop
     
     event_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(event_loop)
-    
-
-    
+    asyncio.set_event_loop(event_loop) 
     app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
 
 
